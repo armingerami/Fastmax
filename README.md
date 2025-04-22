@@ -4,6 +4,7 @@ This is the Github repo for the SC'25 submission of Fastmax.
 ## Table of Contents
 - [Installation](#installation)
 - [Recreate Experiments](#recreate-experiments)
+- [Usage](#usage)
 
 ## Installation
 
@@ -46,5 +47,8 @@ sbatch train_llm_linear.sh
 ```
 Using eight A6000s, the training should take about 5 days using our linear attention implementation, and 8 days for Pytorch's sota softmax-based attention.
 
-## Recreate LLM Benchmarks
+### Recreate LLM Benchmarks
 We use [EleutherAI's lm-eval](https://github.com/EleutherAI/lm-evaluation-harness) to perform the benchmarks. Follow the steps in this [guide](https://github.com/Lightning-AI/litgpt/blob/main/tutorials/evaluation.md).
+
+## Usage
+To use Fastmax (our implementation of linear attention), simply put the fastmax module in your script (see line 20-78 in [litgpt/model.py](#litgpt/model.py)), and call fastmax as the attention layer of your transformer, that is, the inputs should be Query (q), Key (k), Value (v), and the output should be o = attn(q,k)×v (see line 386-395 in [litgpt/model.py](#litgpt/model.py)).
