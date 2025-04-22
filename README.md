@@ -47,8 +47,4 @@ sbatch train_llm_linear.sh
 Using eight A6000s, the training should take about 5 days using our linear attention implementation, and 8 days for Pytorch's sota softmax-based attention.
 
 ## Recreate LLM Benchmarks
-We use [EleutherAI's lm-eval](https://github.com/EleutherAI/lm-evaluation-harness) to perform the benchmarks. Install it using 
-```
-pip install 'lm_eval[all]'
-```
-To perform the benchmarks, run `eval_llm_regular.sh` and `eval_llm_linear.sh` to evaluate the trained LLM using regular and linear attention respectively. Note that you need to first train the LLMs in previous step.
+We use [EleutherAI's lm-eval](https://github.com/EleutherAI/lm-evaluation-harness) to perform the benchmarks. Follow the steps in this [guide](https://github.com/Lightning-AI/litgpt/blob/main/tutorials/evaluation.md).
