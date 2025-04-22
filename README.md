@@ -9,7 +9,7 @@ This is the Github repo for the SC'25 submission of Fastmax.
 ## Installation
 
 NOTE: Plaese use "venv" to set up you virtual environment. Do not use "CONDA".<br>
-After activating you virtual environment and making sure your GPU is accesible (The library will only be installed if there's an Nvidia GPU accesible). The "gcc" version must be between 11.0.0 and 13.0.0, and the cuda version afte 11.0.0. 
+After activating you virtual environment and making sure your GPU is accesible (The library will only be installed if there's an Nvidia GPU accesible). The "gcc" version must be between 11.0.0 and 13.0.0, and the CUDA version > 11.0.0. 
 
 ```
 pip install torch
