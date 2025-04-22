@@ -12,7 +12,6 @@ NOTE: Plaese use "venv" to set up you virtual environment. Do not use "CONDA".<b
 After activating you virtual environment and making sure your GPU is accesible (The library will only be installed if there's an Nvidia GPU accesible). The "gcc" version must be between 11.0.0 and 13.0.0, and the CUDA version > 11.0.0. 
 
 ```
-pip install torch
 cd fastmax
 module load gcc
 module load cuda
