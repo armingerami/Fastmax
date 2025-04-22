@@ -343,7 +343,7 @@ pythia = [
     dict(
         name="pythia-1.4b-linear",
         hf_config=dict(org="EleutherAI", name="pythia-1.4b-linear"),
-        block_size=2048,
+        block_size=8192,
         n_layer=24,
         n_embd=2048,
         n_head=16,
@@ -353,7 +353,7 @@ pythia = [
     dict(
         name="pythia-1.4b",
         hf_config=dict(org="EleutherAI", name="pythia-1.4b"),
-        block_size=2048,
+        block_size=8192,
         n_layer=24,
         n_embd=2048,
         n_head=16,
