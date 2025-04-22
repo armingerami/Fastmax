@@ -3,7 +3,7 @@ This is the Github repo for the SC'25 submission of Fastmax.
 
 ## Table of Contents
 - [Installation](#installation)
-- [Recreate Experiments](#Recreate%20Experiments)
+- [Recreate Experiments](#recreate-experiments)
 
 ## Installation
 
