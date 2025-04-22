@@ -12,7 +12,7 @@ After activating you virtual environment and making sure your GPU is accesible (
 
 ```
 pip install torch
-cd linear_attention
+cd fastmax
 module load gcc
 module load cuda
 python setup_fastmax.py install
