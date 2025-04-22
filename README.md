@@ -19,7 +19,7 @@ python setup_fastmax.py install
 ```
 The installed library name will be `fastmax_cuda`.
 
-## Recreate Profiling Experiments
+## Recreate Experiments
 ### Profiling Forward and Backward Pass
 To recreate the time and memory consumption scalings (Figure 3 and 4 in paper), simply run the `profiling.py` script in the `profiling` folder. The `fastmax.py`, `gla.py`, and `flash.py` are the scripts for our implementaion, [Gated Linear Attention](https://github.com/berlino/gated_linear_attention), and [Speculative Decoding Linear Attention](https://github.com/GATECH-EIC/Linearized-LLM).
 ```
