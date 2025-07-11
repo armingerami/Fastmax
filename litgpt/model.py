@@ -18,8 +18,6 @@ from typing_extensions import Self
 from litgpt.config import Config
 
 from torch import cuda
-# import sys
-# sys.path.append('/fs/nexus-scratch/agerami/litgpt')
 import fastmax_cuda
 
 class FASTMultiHeadAttention_Function(torch.autograd.Function):
