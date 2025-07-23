@@ -23,35 +23,33 @@ class FASTMultiHeadAttention_Function(torch.autograd.Function):
             v = v.reshape((v.shape[0]*v.shape[1],v.shape[2],v.shape[3])) # (b,h,n,d) -> (b*h,n,d)
         elif len(q.shape) != 3: print("q, k, and v should be either 3 or 4 dimensional tensors. If 3D: (b*h,n,d), if 4D: (b,h,n,d).")
         
-        o = fastmax_cuda.forwardpass(q,k,v,mask)
+        o, denum = fastmax_cuda.forwardpass(q,k,v,mask)
         # o = fastmax_cuda.backwardpass(q,k,v,q,q,mask,a0,a1,a2,p)[0]
-        ctx.save_for_backward(q,k,v,o)
+        ctx.save_for_backward(q,k,v,o,denum)
         ctx.mask = mask
         ctx.b = b
-        # print(o[:,:,-1])
-        o = o[:,:,:q.shape[2]]
         if b != 0: o = o.reshape((b,int(o.shape[0]/b),o.shape[1],o.shape[2])) # (b*h,n,d) -> (b,h,n,d)
         return o
 
 
     @staticmethod
     def backward(ctx, grad_output):
-        q,k,v,o = ctx.saved_tensors
+        q,k,v,o,denum = ctx.saved_tensors
         # print(q.get_device())
         if q.get_device() == -1: 
             return q, q, q, None
 
         mask = ctx.mask
-        b = ctx.b
+        # b = ctx.b
 
-        if(b != 0): grad_output = grad_output.reshape((grad_output.shape[0]*grad_output.shape[1],grad_output.shape[2],grad_output.shape[3]))
+        # if(b != 0): grad_output = grad_output.reshape((grad_output.shape[0]*grad_output.shape[1],grad_output.shape[2],grad_output.shape[3]))
 
-        gradq, gradk, gradv = fastmax_cuda.backwardpass(q,k,v,o,grad_output,mask)
+        gradq, gradk, gradv = fastmax_cuda.backwardpass(q,k,v,o,denum,grad_output,mask)
 
-        if(b != 0):
-          gradq = gradq.reshape((b,int(gradq.shape[0]/b),gradq.shape[1],gradq.shape[2]))
-          gradk = gradk.reshape((b,int(gradk.shape[0]/b),gradk.shape[1],gradk.shape[2]))
-          gradv = gradv.reshape((b,int(gradv.shape[0]/b),gradv.shape[1],gradv.shape[2]))
+        # if(b != 0):
+        #   gradq = gradq.reshape((b,int(gradq.shape[0]/b),gradq.shape[1],gradq.shape[2]))
+        #   gradk = gradk.reshape((b,int(gradk.shape[0]/b),gradk.shape[1],gradk.shape[2]))
+        #   gradv = gradv.reshape((b,int(gradv.shape[0]/b),gradv.shape[1],gradv.shape[2]))
           
         return gradq, gradk, gradv, None
     
@@ -81,7 +79,7 @@ def fastmax_function(q, k, v, mask=False, normalize=0, temperature=1, a0=1,a1=1,
             q = lim*q/torch.linalg.norm(qn, dim = 2, ord = float('inf')).unsqueeze(-1).unsqueeze(-1)
             k = lim*k/torch.linalg.norm(kn, dim = 2, ord = float('inf')).unsqueeze(-1).unsqueeze(-1)
         else:
-            temperature = temperature*math.sqrt(q.shape[3])
+            # temperature = temperature*math.sqrt(q.shape[3])
             temperature = 1
         temperature2 = temperature*temperature
 
@@ -144,6 +142,7 @@ def fastmax_function(q, k, v, mask=False, normalize=0, temperature=1, a0=1,a1=1,
 
                 ans = ans2 # (b, h, n, d)
                 ans = torch.add(ans.permute(2,3,1,0) ,first_term.permute(2,1,0)).permute(3,2,0,1) # (b, h, n, d)
+                # ans = torch.add(0 ,first_term.permute(2,1,0)).permute(3,2,0,1) # (b, h, n, d)
                 div = div2 # (b, h, n, d)
                 div = torch.add(div.permute(2,3,1,0) ,div1.permute(3,2,1,0)).permute(3,2,0,1) # (b, h, n, 1)
                 ans = ans/div # (b, h, n, d)
@@ -187,7 +186,7 @@ class FASTMultiHeadAttention(torch.nn.Module):
 
     def forward(self, q,k,v, mask = True, p=1):
         if self.use_custom_gradient: o = FASTMultiHeadAttention_Function.apply(q,k,v,mask)
-        else: o = fastmax_function(q,k,v,mask,p)
+        else: o = fastmax_function(q,k,v,mask,p=p)
         # o = fastmax_function(q,k,v,mask,p)
         return o
 
