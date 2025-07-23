@@ -474,12 +474,12 @@ void calc_gradv_masked1(torch::PackedTensorAccessor32<float,3,torch::RestrictPtr
 
 
 __global__
-void div_grad_output(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> grad_output, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int d){
+void div_grad_output(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> grad_output, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int d){
   const int m = threadIdx.x;
   const int mm = blockIdx.x;
   const int i = blockIdx.y;
   if(m < d && mm < d && i < bh){
-    for(int l = mm; l < nq; l += d) grad_output[i][l][m] /= o[i][l][d];
+    for(int l = mm; l < nq; l += d) grad_output[i][l][m] /= denum[i][l];
   }
 }
 
@@ -491,6 +491,7 @@ std::vector<torch::Tensor> backward_cuda(
     torch::Tensor k,
     torch::Tensor v,
     torch::Tensor o,
+    torch::Tensor denum,
     torch::Tensor grad_output,  
     bool mask){
 
@@ -516,7 +517,7 @@ std::vector<torch::Tensor> backward_cuda(
     auto gradk = torch::zeros({bhkv,nk,d},opts);
     auto gradv = torch::zeros({bhkv,nk,d},opts);
   
-    div_grad_output<<<dim3(d,blocks),threads>>>(grad_output.packed_accessor32<float,3,torch::RestrictPtrTraits>(), o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), bh,nq,d);
+    div_grad_output<<<dim3(d,blocks),threads>>>(grad_output.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(), bh,nq,d);
     cudaDeviceSynchronize();
 
     if(mask){
