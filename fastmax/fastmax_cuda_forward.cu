@@ -10,7 +10,7 @@ namespace {
 
 // UNMASKED PART ////////////////////////////
 __global__
-void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int nk, int d,int bhratio){
+void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int nk, int d,int bhratio){
   extern __shared__ float s[];
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
@@ -18,7 +18,7 @@ void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,to
   float tv, t;
   int loc1, loc2;
   float tr[32];
-  int sz = min(32,d);
+  int sz = std::min(32,d);
   // int szr = 16; //number of reductions happeing in each thread; should be ~sqrt(d)
   // int szrb = 4; //number of reductions happeing in each thread; should be d/szr
   if(outer < d && i < bh){
@@ -30,7 +30,7 @@ void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,to
     }
     float a0div = nk/d;
     for(int l = 0; l < nq; ++l){
-      atomicAdd(&o[i][l][d], q[i][l][outer]*t + a0div);
+      atomicAdd(&denum[i][l], q[i][l][outer]*t + a0div);
     }
 
     // calc cons
@@ -47,7 +47,7 @@ void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,to
 
 
 __global__
-void calc_unmasked_lin(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int nk, int d,int bhratio){
+void calc_unmasked_lin(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int nk, int d,int bhratio){
   extern __shared__ float s[];
   const int outer = threadIdx.x;
   const int mm = blockIdx.x;
@@ -56,7 +56,7 @@ void calc_unmasked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restri
   float tv, t;
   int loc1, loc2;
   float tr[32];
-  int sz = min(32,d);
+  int sz = std::min(32,d);
   int szr = 8; //number of reductions happeing in each thread; should be ~sqrt(d)
   int szrb = d/szr; //number of reductions happeing in each thread; should be d/szr
   if(outer < d && mm < szrb && i < bh){
@@ -81,37 +81,19 @@ void calc_unmasked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restri
       atomicAdd(&o[i][l][outer],t);
     }
 
-    // for(int l = mm; l < nq; l += szrb) o[i][l][outer] /= o[i][l][d];
   }
 }
 
 // UNMASKED PART ////////////////////////////
 __global__
-void calc_masked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int nk, int d,int bhratio){
+void calc_masked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int nk, int d,int bhratio){
   extern __shared__ float s[];
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
   int ikv;
   float tv, t;
   int ndiff = nk-nq;
-  // int szr = 16; //number of reductions happeing in each thread; should be ~sqrt(d)
-  // int szrb = 4; //number of reductions happeing in each thread; should be d/szr
-  //     s[d+outer] = 0;
-//     __syncthreads();
-//     for(int l = 0; l < nk-nq; ++l){
-//       s[d+outer] += k[ikv][l][outer];
-//     }
-//     __syncthreads();
-//     for(int l = 0; l < nq; ++l){
-//       s[d+outer] += k[ikv][nk-nq+l][outer];
-//       s[outer] = q[i][l][outer];
-//       __syncthreads();
-//       if(outer == 0){
-//         t = 0;
-//         for(int r = 0; r < d; ++r) t += s[r]*s[d+r];
-//         o[i][l][d] = t + (nk-nq+l+1);
-//       }
-//     }
+
   if(outer < d && i < bh){
     ikv = i/bhratio;
     // calc lin denum
@@ -123,7 +105,7 @@ void calc_masked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torc
     int ndiff1 = ndiff+1;
     for(int l = 0; l < nq; ++l){
       t += k[ikv][ndiff+l][outer];
-      atomicAdd(&o[i][l][d], q[i][l][outer]*t + a0div*(ndiff1+l));
+      atomicAdd(&denum[i][l], q[i][l][outer]*t + a0div*(ndiff1+l));
     }
 
     // calc cons
@@ -141,7 +123,7 @@ void calc_masked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torc
 
 
 __global__
-void calc_masked_lin(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int nk, int d,int bhratio){
+void calc_masked_lin(const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> q, const torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> k, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> v, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int nk, int d,int bhratio){
   extern __shared__ float s[];
   const int outer = threadIdx.x;
   const int mm = blockIdx.x;
@@ -150,11 +132,12 @@ void calc_masked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restrict
   float tv, t;
   int loc1, loc2;
   float tr[32];
-  int sz = min(32,d);
+  int sz = std::min(32,d);
   int szr = 8; //number of reductions happeing in each thread; should be ~sqrt(d)
   int szrb = d/szr; //number of reductions happeing in each thread; should be d/szr
   int ndiff = nk-nq;
-  if(outer < d && mm < szrb && i < bh){
+  // if(outer < d && mm < szrb && i < bh){
+  if(true){
     ikv = i/bhratio;
     // calc lin
     for(int m = 0; m < szr; ++m) tr[m] = 0;
@@ -184,15 +167,15 @@ void calc_masked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restrict
 }
 
 __global__
-void calc_div(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, int bh, int nq, int d){
+void calc_div(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> denum, int bh, int nq, int d){
   const int outer = threadIdx.x;
   const int mm = blockIdx.x;
   const int i = blockIdx.y;
   int szr = 8; //number of reductions happeing in each thread; should be ~sqrt(d)
   int szrb = d/szr; //number of reductions happeing in each thread; should be d/szr
-  if(outer < d && mm < szrb && i < bh){
-    
-    for(int l = mm; l < nq; l += szrb) o[i][l][outer] /= o[i][l][d];
+  // if(outer < d && mm < szrb && i < bh){
+  if(true){
+    for(int l = mm; l < nq; l += szrb) o[i][l][outer] /= denum[i][l];
   }
 }
 
@@ -239,7 +222,7 @@ void apply_norm(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> 
   if(m < d && i < bh){
     mx = maxes[i];
     if(mx < 0.1) mx = 0.1;
-    for(int l = j*np; l < min(n,(j+1)*np); ++l){
+    for(int l = j*np; l < std::min(n,(j+1)*np); ++l){
       a[i][l][m] /= mx;
     }
   }
@@ -261,7 +244,7 @@ void apply_permute(torch::PackedTensorAccessor32<float,4,torch::RestrictPtrTrait
 
 } // namespace
 
-torch::Tensor forward_cuda(
+std::vector<torch::Tensor> forward_cuda(
     torch::Tensor q,
     torch::Tensor k,
     torch::Tensor v,
@@ -305,7 +288,8 @@ torch::Tensor forward_cuda(
   // auto v = torch::zeros({nk,bh,d},opts);
   // auto drop_noise = torch::zeros({nq,bh,d},opts);
   // auto o = torch::zeros({nq,bh,d+1},opts);
-  auto o = torch::zeros({bh,nq,d+1},opts);
+  auto denum = torch::zeros({bh,nq},opts);
+  auto o = torch::zeros({bh,nq,d},opts);
   // auto out = torch::zeros({b,nq,h,d+1},opts);
   auto qnorms = torch::zeros({bh,nq},opts);
   auto knorms = torch::zeros({bh,nk},opts);
@@ -319,15 +303,15 @@ torch::Tensor forward_cuda(
   // apply_permute<<<dim3(h,b),threads>>>(drop_noise_old.packed_accessor32<float,4,torch::RestrictPtrTraits>(),drop_noise.packed_accessor32<float,3,torch::RestrictPtrTraits>(),b,h,nq,d,0);
 
 
-  if(false){
+  if(true){
     const long th_lim = 1024;
-    int th = min(th_lim, bh);
+    int th = std::min(th_lim, bh);
     calc_norms<<<dim3((bh-1)/th + 1, nq),th>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qnorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,d,th);
     find_max<<<(bh-1)/th + 1,th>>>(qnorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),qmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bh,nk,th);
     for(int np = 0; np < int(nq/n_seg); ++np){
       apply_norm<<<dim3(blocks,n_seg),threads>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bh,nq,d,n_seg);
     }
-    th = min(th_lim, bhkv);
+    th = std::min(th_lim, bhkv);
     calc_norms<<<dim3((bhkv-1)/th + 1, nk),th>>>(k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),knorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bhkv,nk,d,th);
     find_max<<<(bhkv-1)/th + 1,th>>>(knorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),kmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bhkv,nq,th);
     for(int np = 0; np < int(nk/n_seg); ++np){
@@ -336,19 +320,19 @@ torch::Tensor forward_cuda(
   }
 
   if(mask){
-    calc_masked_cons_and_denum<<<blocks,threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
-    calc_masked_lin<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
+    calc_masked_cons_and_denum<<<blocks,threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
+    calc_masked_lin<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
   }
   else{
-    calc_unmasked_cons_and_denum<<<blocks,threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
-    calc_unmasked_lin<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
+    calc_unmasked_cons_and_denum<<<blocks,threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
+    calc_unmasked_lin<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),v.packed_accessor32<float,3,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,nk,d,bhratio);
   }
-  calc_div<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),bh,nk,d);
+  calc_div<<<dim3(szrb,blocks),threads,2*(d)*sizeof(float)>>>(o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),denum.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nk,d);
   
 
   cudaDeviceSynchronize();
 
-  // apply_permute<<<dim3(h,b),threads+1>>>(out.packed_accessor32<float,4,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(),b,h,nq,d+1,1);
+  // apply_permute<<<dim3(h,b),threads+1>>>(out.packed_accessor32<float,4,torch::RestrictPtrTraits>(),o.packed_accessor32<float,3,torch::RestrictPtrTraits>(), denum.packed_accessor32<float,3,torch::RestrictPtrTraits>(),b,h,nq,d+1,1);
 
   // delete q;
   // delete k;
@@ -356,6 +340,6 @@ torch::Tensor forward_cuda(
   // delete drop_noise;
   // delete o;
 
-  return o;
+  return {o, denum};
   // return out;
 }
