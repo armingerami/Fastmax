@@ -511,7 +511,7 @@ std::vector<torch::Tensor> backward_cuda(
     int szr = 8;
     int szrb = d/szr; //number of reduction blocks; should be ~sqrt(d)
     
-    auto opts =  torch::TensorOptions().dtype(q.dtype()).layout(torch::kStrided).device(q.device());
+    auto opts =  q.options();
 
     auto gradq = torch::zeros({bh,nq,d},opts);
     auto gradk = torch::zeros({bhkv,nk,d},opts);
