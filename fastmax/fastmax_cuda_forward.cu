@@ -15,9 +15,7 @@ void calc_unmasked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,to
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
   int ikv;
-  float tv, t;
-  int loc1, loc2;
-  float tr[32];
+  float t;
   int sz = std::min(32,d);
   // int szr = 16; //number of reductions happeing in each thread; should be ~sqrt(d)
   // int szrb = 4; //number of reductions happeing in each thread; should be d/szr
@@ -54,7 +52,6 @@ void calc_unmasked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restri
   const int i = blockIdx.y;
   int ikv;
   float tv, t;
-  int loc1, loc2;
   float tr[32];
   int sz = std::min(32,d);
   int szr = 8; //number of reductions happeing in each thread; should be ~sqrt(d)
@@ -91,7 +88,7 @@ void calc_masked_cons_and_denum(const torch::PackedTensorAccessor32<float,3,torc
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
   int ikv;
-  float tv, t;
+  float t;
   int ndiff = nk-nq;
 
   if(outer < d && i < bh){
@@ -130,11 +127,9 @@ void calc_masked_lin(const torch::PackedTensorAccessor32<float,3,torch::Restrict
   const int i = blockIdx.y;
   int ikv;
   float tv, t;
-  int loc1, loc2;
   float tr[32];
   int sz = std::min(32,d);
   int szr = 8; //number of reductions happeing in each thread; should be ~sqrt(d)
-  int szrb = d/szr; //number of reductions happeing in each thread; should be d/szr
   int ndiff = nk-nq;
   // if(outer < d && mm < szrb && i < bh){
   if(true){
@@ -228,19 +223,6 @@ void apply_norm(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> 
   }
 }
 
-
-__global__
-void apply_permute(torch::PackedTensorAccessor32<float,4,torch::RestrictPtrTraits> a, torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> a_p, int b, int h, int n, int d, int dir){
-  const int m = threadIdx.x;
-  const int j = blockIdx.x;
-  const int i = blockIdx.y;
-  if(m < d && i < b && j < h){
-    for(int l = 0; l < n; ++l){
-      if(dir == 0) a_p[l][i*h+j][m] = a[i][l][j][m];
-      else a[i][l][j][m] = a_p[l][i*h+j][m];
-    }
-  }
-}
 
 } // namespace
 

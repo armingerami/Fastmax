@@ -8,8 +8,10 @@ using namespace std;
 
 
 vector<torch::Tensor> forward_cuda(torch::Tensor q, torch::Tensor k, torch::Tensor v, bool mask);
+vector<torch::Tensor> forward_cuda_bf16(torch::Tensor q, torch::Tensor k, torch::Tensor v, bool mask);
 
 vector<torch::Tensor> backward_cuda(torch::Tensor q, torch::Tensor k, torch::Tensor v, torch::Tensor o, torch::Tensor denum, torch::Tensor grad_output, bool mask);
+vector<torch::Tensor> backward_cuda_bf16(torch::Tensor q, torch::Tensor k, torch::Tensor v, torch::Tensor o, torch::Tensor denum, torch::Tensor grad_output, bool mask);
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
@@ -25,6 +27,19 @@ vector<torch::Tensor> forwardpass(torch::Tensor q, torch::Tensor k, torch::Tenso
   return forward_cuda(q, k, v, mask);
 }
 
+vector<torch::Tensor> forwardpass_bf16(torch::Tensor q, torch::Tensor k, torch::Tensor v, bool mask){
+
+  CHECK_INPUT(q);
+  CHECK_INPUT(k);
+  CHECK_INPUT(v);
+
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(q));
+  return forward_cuda_bf16(q, k, v, mask);
+}
+
+
+
+
 vector<torch::Tensor> backwardpass(torch::Tensor q, torch::Tensor k, torch::Tensor v, torch::Tensor o, torch::Tensor denum, torch::Tensor grad_output, bool mask){
   CHECK_INPUT(q);
   CHECK_INPUT(k);
@@ -34,7 +49,20 @@ vector<torch::Tensor> backwardpass(torch::Tensor q, torch::Tensor k, torch::Tens
   return backward_cuda(q, k, v, o, denum, grad_output, mask);
 }
 
+vector<torch::Tensor> backwardpass_bf16(torch::Tensor q, torch::Tensor k, torch::Tensor v, torch::Tensor o, torch::Tensor denum, torch::Tensor grad_output, bool mask){
+  CHECK_INPUT(q);
+  CHECK_INPUT(k);
+  CHECK_INPUT(v);
+
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(grad_output));
+  return backward_cuda_bf16(q, k, v, o, denum, grad_output, mask);
+}
+
+
+
 PYBIND11_MODULE(fastmax_cuda, m) {
   m.def("forwardpass", &forwardpass, "forwardpass");
   m.def("backwardpass", &backwardpass, "backwardpass");
+  m.def("forwardpass_bf16", &forwardpass_bf16, "forwardpass_bf16");
+  m.def("backwardpass_bf16", &backwardpass_bf16, "backwardpass_bf16");
 }

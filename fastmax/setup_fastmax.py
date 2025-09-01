@@ -28,6 +28,8 @@ setup(
             'fastmax_cuda.cpp',
             'fastmax_cuda_forward.cu',
             'fastmax_cuda_backward.cu',
+            'fastmax_cuda_forward_bf16.cu',
+            'fastmax_cuda_backward_bf16.cu',
         ]),
     ],
     cmdclass={

@@ -338,11 +338,8 @@ void calc_gradv_unmasked0(torch::PackedTensorAccessor32<float,3,torch::RestrictP
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
   int ikv;
-  float tv, t;
-  float tr[32];
+  float t;
   int sz = min(32,d);
-  int szr = 8;  //number of reductions happeing in each thread; should be ~sqrt(d)
-  int szrb = d/szr; //number of reductions blocks; should be d/szr
   if(i < bh && outer < d){
     ikv = i/bhratio;
     // MASKED PART ////////////////////////////
@@ -367,7 +364,7 @@ void calc_gradv_unmasked1(torch::PackedTensorAccessor32<float,3,torch::RestrictP
   const int mm = blockIdx.x;
   const int i = blockIdx.y;
   int ikv;
-  float tv, t;
+  float t;
   float tr[32];
   int sz = min(32,d);
   int szr = 8;  //number of reductions happeing in each thread; should be ~sqrt(d)
@@ -407,11 +404,8 @@ void calc_gradv_masked0(torch::PackedTensorAccessor32<float,3,torch::RestrictPtr
   const int outer = threadIdx.x;
   const int i = blockIdx.x;
   int ikv;
-  float tv, t;
-  float tr[32];
+  float t;
   int sz = min(32,d);
-  int szr = 8;  //number of reductions happeing in each thread; should be ~sqrt(d)
-  int szrb = d/szr; //number of reductions blocks; should be d/szr
   if(i < bh && outer < d){
     ikv = i/bhratio;
     // MASKED PART ////////////////////////////
@@ -437,7 +431,7 @@ void calc_gradv_masked1(torch::PackedTensorAccessor32<float,3,torch::RestrictPtr
   const int mm = blockIdx.x;
   const int i = blockIdx.y;
   int ikv;
-  float tv, t;
+  float t;
   float tr[32];
   int sz = min(32,d);
   int szr = 8;  //number of reductions happeing in each thread; should be ~sqrt(d)
