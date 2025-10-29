@@ -1,5 +1,8 @@
 # Fastmax: Extensively Optimized Linear Attention Implementation
-This is the Github repo for the SC'25 submission of Fastmax.
+This repository provides a highly-optimized CUDA implementation for Linear Attention (LA) in Transformers.<br>
+While standard softmax attention scales quadratically ($O(N^2D)$), LA offers a more efficient linear time complexity ($O(ND^2)$). However, existing LA implementations often fail to match this theoretical efficiency in practice.<br>
+We propose a novel method for LA's forward and backward passes. Our CUDA implementation outperforms the state-of-the-art, achieving a 3.3$\times$ speedup and reducing memory consumption by 3.6$\times$.<br>
+We validate these gains by training a 1.4 billion parameter language model, demonstrating that our method scales efficiently and maintains comparable expressivity to regular attention on major reasoning benchmarks.
 
 ## Table of Contents
 - [Installation](#installation)
