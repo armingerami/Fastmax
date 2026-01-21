@@ -246,8 +246,8 @@ void calc_norms(
     torch::PackedTensorAccessor32<at::BFloat16,2,torch::RestrictPtrTraits> norms,
     int bh, int n, int d, int th) {
   const int ii = threadIdx.x;
-  const int j  = blockIdx.x;
-  const int l  = blockIdx.y;
+  const int j  = blockIdx.y;
+  const int l  = blockIdx.x;
   __nv_bfloat16 t;
   int i;
 
@@ -294,19 +294,15 @@ void apply_norm(
     int bh, int n, int d, int n_seg) {
 
   const int m = threadIdx.x;
-  const int i = blockIdx.x;
-  const int j = blockIdx.y;
+  const int i = blockIdx.y;
+  const int j = blockIdx.x;
   const int seg_len = int(n / n_seg);
 
   if (m < d && i < bh) {
     __nv_bfloat16 mx = BF16_LOAD(maxes[i]);
     if (mx < __float2bfloat16(0.1f)) mx = __float2bfloat16(0.1f);
-    int l_begin = j * seg_len;
-    int l_end   = min(n, (j + 1) * seg_len);
-    for (int l = l_begin; l < l_end; ++l) {
-      __nv_bfloat16 val = BF16_LOAD(a[i][l][m]) / mx;
-      BF16_STORE(a[i][l][m], val);
-    }
+    __nv_bfloat16 val = BF16_LOAD(a[i][j][m]) / mx;
+    BF16_STORE(a[i][j][m], val);
   }
 }
 
@@ -356,7 +352,7 @@ std::vector<torch::Tensor> forward_cuda_bf16(
     const long th_lim = 1024;
     int th = std::min<long>(th_lim, bh);
 
-    calc_norms<<<dim3((bh - 1) / th + 1, nq), th>>>(
+    calc_norms<<<dim3(nq, (bh - 1) / th + 1), th>>>(
         q_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
         qnorms.packed_accessor32<at::BFloat16,2,torch::RestrictPtrTraits>(),
         bh, nq, d, th);
@@ -367,15 +363,13 @@ std::vector<torch::Tensor> forward_cuda_bf16(
         qmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
         bh, nq, th);
 
-    for (int rep = 0; rep < int(nq / n_seg); ++rep) {
-      apply_norm<<<dim3(blocks, n_seg), threads>>>(
-          q_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
-          qmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
-          bh, nq, d, n_seg);
-    }
+    apply_norm<<<dim3(nq, blocks), threads>>>(
+        q_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
+        qmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
+        bh, nq, d, n_seg);
 
     th = std::min<long>(th_lim, bhkv);
-    calc_norms<<<dim3((bhkv - 1) / th + 1, nk), th>>>(
+    calc_norms<<<dim3(nk, (bhkv - 1) / th + 1), th>>>(
         k_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
         knorms.packed_accessor32<at::BFloat16,2,torch::RestrictPtrTraits>(),
         bhkv, nk, d, th);
@@ -386,12 +380,11 @@ std::vector<torch::Tensor> forward_cuda_bf16(
         kmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
         bhkv, nk, th);
 
-    for (int rep = 0; rep < int(nk / n_seg); ++rep) {
-      apply_norm<<<dim3(bhkv, n_seg), threads>>>(
-          k_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
-          kmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
-          bhkv, nk, d, n_seg);
-    }
+
+    apply_norm<<<dim3(nk, bhkv), threads>>>(
+        k_c.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
+        kmaxes.packed_accessor32<at::BFloat16,1,torch::RestrictPtrTraits>(),
+        bhkv, nk, d, n_seg);
   }
 
   // Main computation
