@@ -178,8 +178,8 @@ void calc_div(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> o,
 __global__
 void calc_norms(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> a, torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> norms, int bh, int n, int d, int th){
   const int ii = threadIdx.x;
-  const int j = blockIdx.x;
-  const int l = blockIdx.y;
+  const int j = blockIdx.y;
+  const int l = blockIdx.x;
   float t;
   int i;
   if(l < n && ii < th && j < ((bh-1)/th + 1)){
@@ -210,16 +210,13 @@ void find_max(torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> no
 __global__
 void apply_norm(torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> a, torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> maxes, int bh, int n, int d, int n_seg){
   const int m = threadIdx.x;
-  const int i = blockIdx.x;
-  const int j = blockIdx.y;
-  const int np = int(n/n_seg);
+  const int i = blockIdx.y;
+  const int j = blockIdx.x;
   float mx;
   if(m < d && i < bh){
     mx = maxes[i];
     if(mx < 0.1) mx = 0.1;
-    for(int l = j*np; l < std::min(n,(j+1)*np); ++l){
-      a[i][l][m] /= mx;
-    }
+    a[i][j][m] /= mx;
   }
 }
 
@@ -288,17 +285,13 @@ std::vector<torch::Tensor> forward_cuda(
   if(true){
     const long th_lim = 1024;
     int th = std::min(th_lim, bh);
-    calc_norms<<<dim3((bh-1)/th + 1, nq),th>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qnorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,d,th);
+    calc_norms<<<dim3(nq, (bh-1)/th + 1),th>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qnorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bh,nq,d,th);
     find_max<<<(bh-1)/th + 1,th>>>(qnorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),qmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bh,nk,th);
-    for(int np = 0; np < int(nq/n_seg); ++np){
-      apply_norm<<<dim3(blocks,n_seg),threads>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bh,nq,d,n_seg);
-    }
+    apply_norm<<<dim3(nq, blocks),threads>>>(q.packed_accessor32<float,3,torch::RestrictPtrTraits>(),qmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bh,nq,d,n_seg);
     th = std::min(th_lim, bhkv);
-    calc_norms<<<dim3((bhkv-1)/th + 1, nk),th>>>(k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),knorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bhkv,nk,d,th);
+    calc_norms<<<dim3(nk, (bhkv-1)/th + 1),th>>>(k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),knorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),bhkv,nk,d,th);
     find_max<<<(bhkv-1)/th + 1,th>>>(knorms.packed_accessor32<float,2,torch::RestrictPtrTraits>(),kmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bhkv,nq,th);
-    for(int np = 0; np < int(nk/n_seg); ++np){
-      apply_norm<<<dim3(bhkv,n_seg),threads>>>(k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),kmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bhkv,nk,d,n_seg);
-    }
+    apply_norm<<<dim3(nk, bhkv),threads>>>(k.packed_accessor32<float,3,torch::RestrictPtrTraits>(),kmaxes.packed_accessor32<float,1,torch::RestrictPtrTraits>(),bhkv,nk,d,n_seg);
   }
 
   if(mask){
